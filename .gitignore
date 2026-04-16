@@ -1,6 +1,7 @@
 # 模型文件（体积大，不入库）
 models/
 new_models/
+merge_models/
 
 # Python 虚拟环境
 .venv/

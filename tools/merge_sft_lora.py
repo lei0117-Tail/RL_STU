@@ -50,7 +50,10 @@ print(f"[SELECT_MODEL={SELECT_MODEL}] 加载模型：{BASE_MODEL_PATH}")
 
 _new_models   = os.path.join(_root, "new_models")
 SFT_LORA_PATH = os.path.join(_new_models, f"{SELECT_MODEL}-sft-lora-final")
-OUTPUT_DIR    = os.path.join(_new_models, f"{SELECT_MODEL}-sft-merged")
+
+
+_out_dir = os.path.join(_root, "merge_models")
+OUTPUT_DIR    = os.path.join(_out_dir, f"{SELECT_MODEL}-sft-merged")
 
 # ==========================================
 # 前置检查

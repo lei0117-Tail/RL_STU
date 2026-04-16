@@ -36,7 +36,7 @@ BASE_MODEL_PATH = os.path.join(_root, "models/Qwen2.5-3B")
 if not os.path.isdir(BASE_MODEL_PATH):
     BASE_MODEL_PATH = "Qwen/Qwen2.5-3B"
 
-SFT_LORA_PATH   = os.path.join(_root, "sft/finance-qwen-3b-lora-final")
+SFT_LORA_PATH   = os.path.join(_root, "sft/Qwen2.5-3B-sft-lora-final")
 _new_models     = os.path.join(_root, "new_models")
 SFT_MERGED_PATH = os.path.join(_new_models, "sft-merged")                 # SFT merge 后的完整模型（可选）
 OUTPUT_DIR      = os.path.join(_new_models, "checkpoints/dpo-hh-merged-lora")

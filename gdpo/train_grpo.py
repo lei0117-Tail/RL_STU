@@ -280,8 +280,8 @@ trainer.train(resume_from_checkpoint=resume_from)
 trainer.save_model(FINAL_OUTPUT)
 print(f"\n🎉 GRPO 训练完成！")
 print(f"   GRPO LoRA 插件保存在：{FINAL_OUTPUT}")
-print(f"   SFT  LoRA 插件保存在：{os.path.join(_root, 'sft/finance-qwen-3b-lora-final')}")
-print(f"   DPO  LoRA 插件保存在：{os.path.join(_root, 'dpo/finance-qwen-3b-dpo-final')}")
+print(f"   SFT  LoRA 插件保存在：{os.path.join(_root, 'sft/Qwen2.5-3B-sft-lora-final')}")
+print(f"   DPO  LoRA 插件保存在：{os.path.join(_root, 'dpo/Qwen2.5-3B-dpo-final')}")
 
 # ==========================================
 # 8. 清理中间 checkpoint

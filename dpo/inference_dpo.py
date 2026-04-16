@@ -3,8 +3,8 @@ DPO 推理对比脚本
 ================
 同时加载三个版本进行对比：
   1. 原始 Qwen2.5-3B（无微调）
-  2. SFT 微调版（finance-qwen-3b-lora-final）
-  3. DPO 微调版（finance-qwen-3b-dpo-final 或 hh 版）
+  2. SFT 微调版（Qwen2.5-3B-sft-lora-final）
+  3. DPO 微调版（Qwen2.5-3B-dpo-final 或 hh 版）
 
 运行方式：
   .venv/bin/python dpo/inference_dpo.py
@@ -32,8 +32,8 @@ BASE_MODEL_PATH = os.path.join(_root, "models/Qwen2.5-3B")
 if not os.path.isdir(BASE_MODEL_PATH):
     BASE_MODEL_PATH = "Qwen/Qwen2.5-3B"
 
-SFT_LORA_PATH = os.path.join(_root, "sft/finance-qwen-3b-lora-final")
-DPO_LORA_PATH = os.path.join(_dpo_dir, "finance-qwen-3b-dpo-final")       # 方案二（自生成数据）
+SFT_LORA_PATH = os.path.join(_root, "sft/Qwen2.5-3B-sft-lora-final")
+DPO_LORA_PATH = os.path.join(_dpo_dir, "Qwen2.5-3B-dpo-final")       # 方案二（自生成数据）
 DPO_HH_PATH   = os.path.join(_dpo_dir, "finance-qwen-3b-dpo-hh-final")   # 方案一（hh-rlhf）
 
 MAX_NEW_TOKENS = 300

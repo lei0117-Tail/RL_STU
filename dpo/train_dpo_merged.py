@@ -9,10 +9,10 @@ merge_and_unload() 的作用：
   把 LoRA 插件的权重"烧录"进基础模型，得到一个融合了 SFT 知识的完整模型
   之后 DPOTrainer 在这个更聪明的模型上套新 LoRA 继续训练
 
-训练结果保存到：dpo/finance-qwen-3b-dpo-merged-final/
+训练结果保存到：dpo/Qwen2.5-3B-dpo-merged-final/
 
 运行前提：
-  sft/finance-qwen-3b-lora-final/ 目录必须存在（先跑完 sft/train_finance_mac.py）
+  sft/Qwen2.5-3B-sft-lora-final/ 目录必须存在（先跑完 sft/train_finance_mac.py）
 
 运行方式：
   # 第一步：先生成 DPO 数据（只需一次）

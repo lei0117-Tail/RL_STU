@@ -213,7 +213,7 @@ RL_STU/
 from peft import PeftModel
 
 base = AutoModelForCausalLM.from_pretrained("models/Qwen2.5-3B")
-model = PeftModel.from_pretrained(base, "new_models/finance-qwen-3b-lora-final")
+model = PeftModel.from_pretrained(base, "new_models/Qwen2.5-3B-sft-lora-final")
 
 # ── 合并后：直接加载单个目录即可 ──
 model = AutoModelForCausalLM.from_pretrained("sft/finance-qwen-3b-sft-merged")

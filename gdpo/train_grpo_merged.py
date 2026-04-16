@@ -271,7 +271,7 @@ trainer.save_model(FINAL_OUTPUT)
 print(f"\n🎉 串联 GRPO 训练完成！")
 print(f"   串联 GRPO LoRA 保存在：{FINAL_OUTPUT}")
 print(f"\n完整串联链路：")
-print(f"  原始模型 → SFT({os.path.join(_root, 'sft/finance-qwen-3b-lora-final')})")
+print(f"  原始模型 → SFT({os.path.join(_root, 'sft/Qwen2.5-3B-sft-lora-final')})")
 print(f"           → merge → GRPO LoRA({FINAL_OUTPUT})")
 
 # ==========================================

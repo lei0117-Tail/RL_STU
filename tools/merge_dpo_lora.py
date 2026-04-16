@@ -76,17 +76,18 @@ _dpo_dir = os.path.join(_root, "dpo")
 
 _local_model    = os.path.join(_root, "models", SELECT_MODEL)
 BASE_MODEL_PATH = _local_model if os.path.isdir(_local_model) else f"Qwen/{SELECT_MODEL}"
-_new_models     = os.path.join(_root, "new_models")
+_new_models     = os.path.join(_root, "new_models")    # LoRA 插件来源目录
+_merge_models   = os.path.join(_root, "merge_models")  # 合并后完整模型输出目录
 SFT_LORA_PATH   = os.path.join(_new_models, f"{SELECT_MODEL}-sft-lora-final")
-SFT_MERGED_PATH = os.path.join(_new_models, f"{SELECT_MODEL}-sft-merged")
+SFT_MERGED_PATH = os.path.join(_merge_models, f"{SELECT_MODEL}-sft-merged")  # 从 merge_models 读取
 
 # 并联：DPO LoRA 基于原始模型训练
 DPO_PARALLEL_LORA   = os.path.join(_new_models, f"{SELECT_MODEL}-dpo-lora-final")
-DPO_PARALLEL_OUTPUT = os.path.join(_new_models, f"{SELECT_MODEL}-dpo-parallel-merged")
+DPO_PARALLEL_OUTPUT = os.path.join(_merge_models, f"{SELECT_MODEL}-dpo-parallel-merged")
 
 # 串联：DPO LoRA 基于 SFT 合并模型训练
 DPO_SERIAL_LORA     = os.path.join(_new_models, f"{SELECT_MODEL}-dpo-merged-final")
-DPO_SERIAL_OUTPUT   = os.path.join(_new_models, f"{SELECT_MODEL}-dpo-serial-merged")
+DPO_SERIAL_OUTPUT   = os.path.join(_merge_models, f"{SELECT_MODEL}-dpo-serial-merged")
 
 # ==========================================
 # 选择模式

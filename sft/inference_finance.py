@@ -16,7 +16,7 @@ load_dotenv()
 # ==========================================
 _local_model_path = os.path.join(os.path.dirname(__file__), "../models/Qwen2.5-3B")
 BASE_MODEL_PATH = _local_model_path if os.path.isdir(_local_model_path) else "Qwen/Qwen2.5-3B"
-LORA_PATH = os.path.join(os.path.dirname(__file__), "finance-qwen-3b-lora-final")
+LORA_PATH = os.path.join(os.path.dirname(__file__), "Qwen2.5-3B-sft-lora-final")
 
 # ==========================================
 # 加载原模型 + LoRA 插件

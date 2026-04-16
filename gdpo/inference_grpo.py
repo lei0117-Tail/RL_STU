@@ -35,8 +35,8 @@ BASE_MODEL_PATH  = os.path.join(_root, "models/Qwen2.5-3B")
 if not os.path.isdir(BASE_MODEL_PATH):
     BASE_MODEL_PATH = "Qwen/Qwen2.5-3B"
 
-SFT_LORA_PATH  = os.path.join(_sft_dir,  "finance-qwen-3b-lora-final")
-DPO_LORA_PATH  = os.path.join(_dpo_dir,  "finance-qwen-3b-dpo-final")
+SFT_LORA_PATH  = os.path.join(_sft_dir,  "Qwen2.5-3B-sft-lora-final")
+DPO_LORA_PATH  = os.path.join(_dpo_dir,  "Qwen2.5-3B-dpo-final")
 GRPO_LORA_PATH = os.path.join(_grpo_dir, "finance-qwen-3b-grpo-final")
 
 MAX_NEW_TOKENS = 300

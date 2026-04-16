@@ -7,7 +7,7 @@ DPO 训练脚本（方案二：自生成数据）
   chosen  = finance-alpaca 标准答案（高质量）
   rejected = 原始 Qwen 生成的回答（较差）
 
-训练结果保存到：dpo/finance-qwen-3b-dpo-final/（全新目录，不覆盖 SFT）
+训练结果保存到：dpo/Qwen2.5-3B-dpo-final/（全新目录，不覆盖 SFT）
 
 运行方式：
   # 第一步：先生成数据（只需执行一次）
