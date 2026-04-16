@@ -23,7 +23,7 @@ import torch
 from dotenv import load_dotenv
 from datasets import load_dataset
 from peft import LoraConfig
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from trl import DPOConfig, DPOTrainer
 
 load_dotenv()
@@ -89,23 +89,37 @@ print(f"有效数据：{len(dataset)} 条")
 # 2. 加载基础模型
 # ==========================================
 print(f"加载基础模型：{BASE_MODEL_PATH}")
+
+# 检测模型架构
+try:
+    _cfg  = AutoConfig.from_pretrained(BASE_MODEL_PATH)
+    _arch = getattr(_cfg, 'model_type', '')
+except Exception:
+    _arch = ''
+_is_multimodal = _arch in ("gemma4", "paligemma", "llava", "idefics", "mllama")
+
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_PATH)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
 model = AutoModelForCausalLM.from_pretrained(
     BASE_MODEL_PATH,
-    dtype=torch.bfloat16,
+    torch_dtype=torch.bfloat16,
     device_map="mps"
 )
 
 # ==========================================
 # 3. LoRA 配置（全新 LoRA，独立于 SFT）
 # ==========================================
+if _is_multimodal and _arch == "gemma4":
+    _target_modules = r"model\.language_model\.layers\.\d+\.self_attn\.(q|k|v|o)_proj"
+else:
+    _target_modules = ["q_proj", "v_proj"]
+
 peft_config = LoraConfig(
     r=8,
     lora_alpha=16,
-    target_modules=["q_proj", "v_proj"],
+    target_modules=_target_modules,
     lora_dropout=0.05,
     bias="none",
     task_type="CAUSAL_LM"

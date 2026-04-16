@@ -28,7 +28,7 @@ import torch
 from dotenv import load_dotenv
 from datasets import Dataset
 from peft import LoraConfig
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from trl import DPOConfig, DPOTrainer
 
 load_dotenv()
@@ -77,15 +77,23 @@ print(f"共 {len(dataset)} 条 DPO 训练数据")
 # 2. 加载基础模型（从 SFT LoRA 的基础模型出发）
 # ==========================================
 print(f"加载基础模型：{BASE_MODEL_PATH}")
+
+# 检测模型架构，多模态模型（如 gemma4）需要特殊处理
+try:
+    _cfg  = AutoConfig.from_pretrained(BASE_MODEL_PATH)
+    _arch = getattr(_cfg, 'model_type', '')
+except Exception:
+    _arch = ''
+_is_multimodal = _arch in ("gemma4", "paligemma", "llava", "idefics", "mllama")
+
 choose_path = SFT_LORA_PATH if os.path.isdir(SFT_LORA_PATH) else BASE_MODEL_PATH
 tokenizer = AutoTokenizer.from_pretrained(choose_path)
-
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
 model = AutoModelForCausalLM.from_pretrained(
     BASE_MODEL_PATH,
-    dtype=torch.bfloat16,
+    torch_dtype=torch.bfloat16,
     device_map="mps"
 )
 
@@ -94,10 +102,16 @@ model = AutoModelForCausalLM.from_pretrained(
 # 3. 配置新的 LoRA 插件（全新一套，不依赖 SFT 的权重）
 # ==========================================
 # DPO 会生成独立的 LoRA 权重文件，保存在 FINAL_OUTPUT 目录
+# gemma4 多模态模型需用正则只注入文本解码器，跳过视觉/音频塔的 Gemma4ClippableLinear
+if _is_multimodal and _arch == "gemma4":
+    _target_modules = r"model\.language_model\.layers\.\d+\.self_attn\.(q|k|v|o)_proj"
+else:
+    _target_modules = ["q_proj", "v_proj"]
+
 peft_config = LoraConfig(
     r=8,
     lora_alpha=16,
-    target_modules=["q_proj", "v_proj"],
+    target_modules=_target_modules,
     lora_dropout=0.05,
     bias="none",
     task_type="CAUSAL_LM"

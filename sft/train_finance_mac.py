@@ -60,10 +60,11 @@ model = AutoModelForCausalLM.from_pretrained(
 # ==========================================
 # 3. 配置 LoRA 插件 (省内存神器)
 # ==========================================
-# 根据模型架构自动选择 target_modules
-# gemma4 的文本解码器内部注意力模块名与 Qwen/LLaMA 一致
+# gemma4 是多模态模型，视觉塔和音频塔中的模块是 Gemma4ClippableLinear，PEFT 不支持。
+# 必须用正则表达式只匹配 language_model 路径下的标准 nn.Linear 模块，跳过 vision/audio tower。
 if _is_multimodal and _arch == "gemma4":
-    _target_modules = ["q_proj", "v_proj", "k_proj", "o_proj"]  # gemma4 文本 decoder 的注意力层
+    # 正则精确匹配：只注入 language_model 解码器层的注意力投影
+    _target_modules = r"model\.language_model\.layers\.\d+\.self_attn\.(q|k|v|o)_proj"
 else:
     _target_modules = ["q_proj", "v_proj"]
 

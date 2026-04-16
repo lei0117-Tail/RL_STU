@@ -33,7 +33,7 @@ import torch
 from dotenv import load_dotenv
 from datasets import Dataset
 from peft import LoraConfig, PeftModel
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from trl import DPOConfig, DPOTrainer
 
 load_dotenv()
@@ -44,16 +44,18 @@ load_dotenv()
 _root    = os.path.dirname(os.path.dirname(__file__))
 _dpo_dir = os.path.dirname(__file__)
 
-BASE_MODEL_PATH = os.path.join(_root, "models/Qwen2.5-3B")
-if not os.path.isdir(BASE_MODEL_PATH):
-    BASE_MODEL_PATH = "Qwen/Qwen2.5-3B"
+# 模型选择（通过 .env 中的 SELECT_MODEL 控制）
+SELECT_MODEL    = os.getenv("SELECT_MODEL", "Qwen2.5-3B")
+_local_model    = os.path.join(_root, "models", SELECT_MODEL)
+BASE_MODEL_PATH = _local_model if os.path.isdir(_local_model) else f"Qwen/{SELECT_MODEL}"
+print(f"[SELECT_MODEL={SELECT_MODEL}] 加载模型：{BASE_MODEL_PATH}")
 
-SFT_LORA_PATH    = os.path.join(_root, "sft/finance-qwen-3b-lora-final")
+SFT_LORA_PATH    = os.path.join(_root, f"new_models/{SELECT_MODEL}-sft-lora-final")
 DATA_FILE        = os.path.join(_dpo_dir, "dpo_finance_data.jsonl")
 _new_models      = os.path.join(_root, "new_models")
-SFT_MERGED_PATH  = os.path.join(_new_models, "sft-merged")                # SFT merge 后的完整模型（可选）
-OUTPUT_DIR       = os.path.join(_new_models, "checkpoints/dpo-merged-lora")
-FINAL_OUTPUT     = os.path.join(_new_models, "dpo-merged-final")
+SFT_MERGED_PATH  = os.path.join(_new_models, f"{SELECT_MODEL}-sft-merged")
+OUTPUT_DIR       = os.path.join(_new_models, f"checkpoints/{SELECT_MODEL}-dpo-merged-lora")
+FINAL_OUTPUT     = os.path.join(_new_models, f"{SELECT_MODEL}-dpo-merged-final")
 
 # ==========================================
 # 前置检查
@@ -95,10 +97,10 @@ if os.path.isdir(SFT_MERGED_PATH):
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(
         SFT_MERGED_PATH,
-        dtype=torch.bfloat16,
+        torch_dtype=torch.bfloat16,
         device_map="mps"
     )
-    print(f"  ✅ 加载完成！模型 = 原始 Qwen + SFT 金融知识（已合并）\n")
+    print(f"  ✅ 加载完成！模型 = {SELECT_MODEL} + SFT 金融知识（已合并）\n")
 else:
     # ── 慢速路径：现场执行 原始模型 → SFT LoRA → merge ──
     print(f"\n[串联方案] 未发现 SFT 合并模型，现场执行 merge ...")
@@ -111,7 +113,7 @@ else:
     print(f"  Step 1/3: 加载原始模型 {BASE_MODEL_PATH} ...")
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL_PATH,
-        dtype=torch.bfloat16,
+        torch_dtype=torch.bfloat16,
         device_map="mps"
     )
 
@@ -125,12 +127,24 @@ else:
 # ==========================================
 # 3. 在合并后的模型上配置新 LoRA
 # ==========================================
-# 这个新 LoRA 是在"SFT之后的模型"基础上训练的
-# 等于：DPO 的起点 = 原始模型 + SFT知识，而不是原始模型
+# 这个新 LoRA 是在“SFT之后的模型”基础上训练的
+# 检测模型架构
+try:
+    _cfg  = AutoConfig.from_pretrained(BASE_MODEL_PATH)
+    _arch = getattr(_cfg, 'model_type', '')
+except Exception:
+    _arch = ''
+_is_multimodal = _arch in ("gemma4", "paligemma", "llava", "idefics", "mllama")
+
+if _is_multimodal and _arch == "gemma4":
+    _target_modules = r"model\.language_model\.layers\.\d+\.self_attn\.(q|k|v|o)_proj"
+else:
+    _target_modules = ["q_proj", "v_proj"]
+
 peft_config = LoraConfig(
     r=8,
     lora_alpha=16,
-    target_modules=["q_proj", "v_proj"],
+    target_modules=_target_modules,
     lora_dropout=0.05,
     bias="none",
     task_type="CAUSAL_LM"

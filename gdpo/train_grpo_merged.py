@@ -26,7 +26,7 @@ import torch
 from dotenv import load_dotenv
 from datasets import load_dataset
 from peft import LoraConfig, PeftModel
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from trl import GRPOConfig, GRPOTrainer
 
 load_dotenv()
@@ -159,10 +159,10 @@ if os.path.isdir(SFT_MERGED_PATH):
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(
         SFT_MERGED_PATH,
-        dtype=torch.bfloat16,
+        torch_dtype=torch.bfloat16,
         device_map="mps"
     )
-    print(f"  ✅ 加载完成！模型 = 原始 Qwen + SFT 金融知识（已合并）\n")
+    print(f"  ✅ 加载完成！模型 = {SELECT_MODEL} + SFT 金融知识（已合并）\n")
 else:
     print(f"\n[串联方案] 未发现 SFT 合并模型，现场执行 merge ...")
     print(f"  提示：可先运行 tools/merge_sft_lora.py 生成合并模型，下次直接加载更快")
@@ -174,7 +174,7 @@ else:
     print(f"  Step 1/3: 加载原始模型 ...")
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL_PATH,
-        dtype=torch.bfloat16,
+        torch_dtype=torch.bfloat16,
         device_map="mps"
     )
 
@@ -188,10 +188,23 @@ else:
 # ==========================================
 # 4. 新 LoRA 配置
 # ==========================================
+# 检测模型架构
+try:
+    _cfg  = AutoConfig.from_pretrained(BASE_MODEL_PATH)
+    _arch = getattr(_cfg, 'model_type', '')
+except Exception:
+    _arch = ''
+_is_multimodal = _arch in ("gemma4", "paligemma", "llava", "idefics", "mllama")
+
+if _is_multimodal and _arch == "gemma4":
+    _target_modules = r"model\.language_model\.layers\.\d+\.self_attn\.(q|k|v|o)_proj"
+else:
+    _target_modules = ["q_proj", "v_proj"]
+
 peft_config = LoraConfig(
     r=8,
     lora_alpha=16,
-    target_modules=["q_proj", "v_proj"],
+    target_modules=_target_modules,
     lora_dropout=0.05,
     bias="none",
     task_type="CAUSAL_LM"
