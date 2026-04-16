@@ -1,0 +1,17 @@
+# PyTorch (Apple M 芯片 MPS 加速)
+torch
+torchvision
+torchaudio
+
+# Hugging Face 核心库
+transformers>=4.40.0
+datasets>=2.18.0
+accelerate>=0.29.0
+
+# LoRA 微调
+peft>=0.10.0
+
+# 监督微调训练器
+trl>=0.8.6
+
+
