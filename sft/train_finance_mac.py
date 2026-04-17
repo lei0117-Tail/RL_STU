@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()  # 从 .env 文件加载其余环境变量（HF_TOKEN 等）
 
 from datasets import load_dataset
-from peft import LoraConfig
+from peft import LoraConfig, PeftModel
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from trl import SFTConfig
 from trl import SFTTrainer  # noqa: E402
@@ -25,11 +25,35 @@ model_id     = _local_model if os.path.isdir(_local_model) else f"Qwen/{SELECT_M
 print(f"[SELECT_MODEL={SELECT_MODEL}] 加载模型：{model_id}")
 
 # ==========================================
-# 1. 加载金融数据集
+# 1. 加载金融数据集（全量 finance-alpaca + FinGPT 补充）
 # ==========================================
-print("正在从 Hugging Face 下载金融数据集...")
-# 我们只取前 2000 条数据来做快速测试，跑通后再用全量数据
-dataset = load_dataset("gbharti/finance-alpaca", split="train[:2000]")
+print("正在加载金融数据集...")
+
+# ── finance-alpaca：全量，标准金融问答（约 68912 条）
+# 控制数量避免单数据集主导，取 4000 条
+ds_alpaca = load_dataset("gbharti/finance-alpaca", split="train[:4000]")
+print(f"  finance-alpaca: {len(ds_alpaca)} 条")
+
+# ── FinGPT sentiment：金融情感分析补充（约 76772 条），取 1000 条保持比例 4:1
+ds_fingpt = load_dataset("FinGPT/fingpt-sentiment-train", split="train[:1000]")
+print(f"  FinGPT/fingpt-sentiment-train: {len(ds_fingpt)} 条")
+
+from datasets import concatenate_datasets
+
+
+# FinGPT 格式：{input, output} → 统一成 {instruction, input, output}
+def normalize_fingpt(example):
+    return {
+        "instruction": example["input"],   # FinGPT 的 input 就是指令
+        "input":       "",
+        "output":      example["output"],
+    }
+
+ds_fingpt = ds_fingpt.map(normalize_fingpt, remove_columns=ds_fingpt.column_names)
+
+# 合并两个数据集，shuffle 打散
+dataset = concatenate_datasets([ds_alpaca, ds_fingpt]).shuffle(seed=42)
+print(f"  合并后总计: {len(dataset)} 条")
 
 # ==========================================
 # 2. 加载模型与分词器 (M4 专属优化)
@@ -83,7 +107,10 @@ peft_config = LoraConfig(
 # ==========================================
 # 新版 trl 1.x 的 formatting_func 每次传入单条样本（非批量），直接返回字符串即可
 def formatting_prompts_func(example):
-    return f"指令: {example['instruction']}\n输入: {example['input']}\n回答: {example['output']}"
+    instruction = example.get('instruction', '').strip()
+    inp         = example.get('input', '').strip()
+    output      = example.get('output', '').strip()
+    return f"指令: {instruction}\n输入: {inp}\n回答: {output}"
 
 # ==========================================
 # 5. 设置训练参数 (严格防爆内存)
@@ -96,15 +123,15 @@ FINAL_OUTPUT = os.path.join(_new_models, f"{SELECT_MODEL}-sft-lora-final")
 
 training_args = SFTConfig(
     output_dir=OUTPUT_DIR,
-    per_device_train_batch_size=1,      # 【关键】每次只吃 1 条数据，绝不撑爆 24G 内存
+    per_device_train_batch_size=1,      # 【关键】每次只吃 1 条数据，绝不撑爆内存
     gradient_accumulation_steps=4,      # 攒够 4 条数据再更新一次参数，变相实现 batch_size=4
     learning_rate=2e-4,
-    logging_steps=10,                   # 每 10 步在屏幕上打印一次日志
-    max_steps=200,                      # 为了演示，我们只训练 200 步就停止
-    save_steps=100,                     # 每 100 步保存一次插件
+    logging_steps=10,
+    max_steps=500,                      # 全量数据，训练步数提升到 500
+    save_steps=200,
     optim="adamw_torch",
-    report_to="none",                   # 关闭第三方日志记录
-    max_length=512,                     # 【关键】限制每条数据的文本长度，太长会导致内存溢出
+    report_to="none",
+    max_length=512,
 )
 
 # ==========================================
@@ -152,4 +179,56 @@ if os.path.isdir(OUTPUT_DIR):
     shutil.rmtree(OUTPUT_DIR)
     print(f"🧹 已清理训练中间文件：{OUTPUT_DIR}")
     print(f"   （最终 LoRA 权重已保存在 {FINAL_OUTPUT}，checkpoint 不再需要）")
+
+# ==========================================
+# 9. 自动 merge：将 LoRA 烧录进基础模型
+# ==========================================
+print()
+print("=" * 60)
+print("Step merge: 将 SFT LoRA 合并进基础模型...")
+print("=" * 60)
+
+MERGE_OUTPUT = os.path.join(_root, "merge_models", f"{SELECT_MODEL}-sft-merged")
+
+print(f"  基础模型：{model_id}")
+print(f"  SFT LoRA：{FINAL_OUTPUT}")
+print(f"  输出目录：{MERGE_OUTPUT}")
+print()
+
+# 重新加载原始基础模型（训练后 model 已经是 PeftModel，需要干净的基础模型来 merge）
+print("  加载基础模型 ...")
+base_model = AutoModelForCausalLM.from_pretrained(
+    model_id,
+    torch_dtype=torch.bfloat16,
+    device_map="mps"
+)
+
+print("  挂载 SFT LoRA ...")
+base_model = PeftModel.from_pretrained(base_model, FINAL_OUTPUT)
+
+print("  执行 merge_and_unload ...")
+merged_model = base_model.merge_and_unload()
+print("  ✅ merge 完成！")
+
+# 保存合并后模型
+print(f"  保存合并模型到 {MERGE_OUTPUT} ...")
+os.makedirs(MERGE_OUTPUT, exist_ok=True)
+merged_model.save_pretrained(MERGE_OUTPUT)
+
+# tokenizer 从原始模型路径加载并保存（避免 save_pretrained 生成 expanded tokenizer.json）
+_tok_merge = AutoTokenizer.from_pretrained(model_id)
+if _tok_merge.pad_token is None:
+    _tok_merge.pad_token = _tok_merge.eos_token
+_tok_merge.save_pretrained(MERGE_OUTPUT)
+
+print()
+print("=" * 60)
+print("🎉 SFT 训练 + Merge 全部完成！")
+print("=" * 60)
+print(f"  LoRA 权重：{FINAL_OUTPUT}")
+print(f"  合并模型：{MERGE_OUTPUT}")
+print()
+print("下一步：")
+print("  # 生成 DPO 数据（用合并后的 SFT 模型生成 rejected）")
+print("  .venv/bin/python3 dpo/generate_dpo_data.py")
 
