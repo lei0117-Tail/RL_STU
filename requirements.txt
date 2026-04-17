@@ -1,10 +1,10 @@
 # PyTorch (Apple M 芯片 MPS 加速)
-torch
+torch~=2.11.0
 torchvision
 torchaudio
 
 # Hugging Face 核心库
-transformers>=4.40.0
+transformers>=5.0.0
 datasets>=2.18.0
 accelerate>=0.29.0
 
@@ -12,6 +12,10 @@ accelerate>=0.29.0
 peft>=0.10.0
 
 # 监督微调训练器
-trl>=0.8.6
+trl>=1.1.0  # GRPOConfig/GRPOTrainer 需要 1.0.0+
 
 
+
+dotenv~=0.9.9
+python-dotenv~=1.2.2
+tqdm~=4.67.3

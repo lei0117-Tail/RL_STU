@@ -45,7 +45,11 @@ print(f"[SELECT_MODEL={SELECT_MODEL}] 加载模型：{BASE_MODEL_PATH}")
 
 SFT_LORA_PATH   = os.path.join(_root, f"new_models/{SELECT_MODEL}-sft-lora-final")
 _new_models     = os.path.join(_root, "new_models")
-SFT_MERGED_PATH = os.path.join(_new_models, f"{SELECT_MODEL}-sft-merged")  # SFT merge 后的完整模型（可选）
+
+_merge_model_path = os.path.join(_root, "merge_models")
+
+SFT_MERGED_PATH = os.path.join(_merge_model_path, f"{SELECT_MODEL}-sft-merged")  # SFT merge 后的完整模型（可选）
+
 OUTPUT_DIR      = os.path.join(_new_models, f"checkpoints/{SELECT_MODEL}-grpo-merged-lora")
 FINAL_OUTPUT    = os.path.join(_new_models, f"{SELECT_MODEL}-grpo-merged-final")
 
@@ -62,7 +66,7 @@ if not os.path.isdir(SFT_LORA_PATH):
 # 1. 加载数据集（GRPO 只需要 prompt）
 # ==========================================
 print("加载 finance-alpaca 数据集...")
-raw_dataset = load_dataset("gbharti/finance-alpaca", split="train[:1000]")
+raw_dataset = load_dataset("gbharti/finaetao nce-alpaca", split="train[:1000]")
 
 def format_prompt(example):
     instruction = example["instruction"].strip()
@@ -224,8 +228,7 @@ grpo_config = GRPOConfig(
     optim="adamw_torch",
     report_to="none",
     num_generations=4,
-    max_new_tokens=200,
-    max_prompt_length=256,
+    max_completion_length=200,  # TRL>=1.0: 原 max_new_tokens 改名为 max_completion_length
     temperature=0.9,
     beta=0.01,
 )
