@@ -19,9 +19,10 @@ from trl import SFTTrainer  # noqa: E402
 # 0. 模型选择（通过 .env 中的 SELECT_MODEL 控制）
 # ==========================================
 _root        = os.path.dirname(os.path.dirname(__file__))
-SELECT_MODEL = os.getenv("SELECT_MODEL", "Qwen2.5-3B")          # 默认 Qwen2.5-3B
-_local_model = os.path.join(_root, "models", SELECT_MODEL)
-model_id     = _local_model if os.path.isdir(_local_model) else f"Qwen/{SELECT_MODEL}"
+SELECT_MODEL  = os.getenv("SELECT_MODEL", "Qwen2.5-3B")          # 默认 Qwen2.5-3B
+HF_MODEL_ORG  = os.getenv("HF_MODEL_ORG", "Qwen")                # HF 组织名，gemma 系列填 google
+_local_model  = os.path.join(_root, "models", SELECT_MODEL)
+model_id      = _local_model if os.path.isdir(_local_model) else f"{HF_MODEL_ORG}/{SELECT_MODEL}"
 print(f"[SELECT_MODEL={SELECT_MODEL}] 加载模型：{model_id}")
 
 # ==========================================
@@ -183,6 +184,8 @@ if os.path.isdir(OUTPUT_DIR):
 # ==========================================
 # 9. 自动 merge：将 LoRA 烧录进基础模型
 # ==========================================
+import gc
+
 print()
 print("=" * 60)
 print("Step merge: 将 SFT LoRA 合并进基础模型...")
@@ -195,7 +198,19 @@ print(f"  SFT LoRA：{FINAL_OUTPUT}")
 print(f"  输出目录：{MERGE_OUTPUT}")
 print()
 
-# 重新加载原始基础模型（训练后 model 已经是 PeftModel，需要干净的基础模型来 merge）
+# ── 先释放训练占用的显存 ──────────────────────────────────────────────
+# 训练结束后 trainer.model 是 PeftModel，仍占着显存。
+# 必须先彻底释放，再加载 base_model，否则两份模型同时在显存里会 OOM。
+print("  释放训练模型显存 ...")
+del trainer
+del model
+gc.collect()
+if torch.backends.mps.is_available():
+    torch.mps.empty_cache()
+print("  ✅ 显存已释放")
+print()
+
+# 重新加载原始基础模型（干净状态，无 LoRA）
 print("  加载基础模型 ...")
 base_model = AutoModelForCausalLM.from_pretrained(
     model_id,

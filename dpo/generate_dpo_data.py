@@ -12,7 +12,10 @@
 运行方式：
   .venv/bin/python dpo/generate_dpo_data.py
 
-前置条件：必须先跑完 merge_models/Qwen2.5-3B-sft-merged（通过 tools/merge_sft_lora.py 生成）
+前置条件：必须先跑完 merge_models/{SELECT_MODEL}-sft-merged（通过 sft/train_finance_mac.py 末尾自动 merge 生成）
+
+输出文件按模型名区分，避免不同模型互相覆盖：
+  dpo/dpo_finance_data_{SELECT_MODEL}.jsonl
 """
 
 import json
@@ -40,11 +43,12 @@ SFT_MERGED_PATH = os.path.join(_root, "merge_models", f"{SELECT_MODEL}-sft-merge
 if not os.path.isdir(SFT_MERGED_PATH):
     raise FileNotFoundError(
         f"SFT merged 模型不存在：{SFT_MERGED_PATH}\n"
-        f"请先跑 tools/merge_sft_lora.py 生成合并模型"
+        f"请先跑 sft/train_finance_mac.py（末尾会自动 merge）"
     )
 print(f"[SELECT_MODEL={SELECT_MODEL}] 加载 SFT merged 模型：{SFT_MERGED_PATH}")
 
-OUTPUT_FILE = os.path.join(os.path.dirname(__file__), "dpo_finance_data.jsonl")
+# 输出文件名携带模型名，不同模型不互相覆盖
+OUTPUT_FILE = os.path.join(os.path.dirname(__file__), f"dpo_finance_data_{SELECT_MODEL}.jsonl")
 
 # 生成多少条 DPO 数据（每条需要跑一次推理，越多越慢）
 NUM_SAMPLES    = 1000   # 扬展到 1000 条
@@ -147,5 +151,5 @@ print(f"\n✅ 生成完毕！")
 print(f"   有效数据：{len(results)} 条")
 print(f"   跳过数据：{skipped} 条")
 print(f"   已保存到：{OUTPUT_FILE}")
-print("\n接下来运行 train_dpo.py 开始 DPO 训练")
+print(f"\n接下来运行 train_dpo_merged.py 开始 DPO 训练（SELECT_MODEL={SELECT_MODEL}）")
 

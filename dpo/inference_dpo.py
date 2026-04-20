@@ -27,14 +27,18 @@ load_dotenv()
 # ==========================================
 _root    = os.path.dirname(os.path.dirname(__file__))
 _dpo_dir = os.path.dirname(__file__)
+_new_models = os.path.join(_root, "new_models")
 
-BASE_MODEL_PATH = os.path.join(_root, "models/Qwen2.5-3B")
-if not os.path.isdir(BASE_MODEL_PATH):
-    BASE_MODEL_PATH = "Qwen/Qwen2.5-3B"
+SELECT_MODEL = os.getenv("SELECT_MODEL", "Qwen2.5-3B")
+HF_MODEL_ORG = os.getenv("HF_MODEL_ORG", "Qwen")               # HF 组织名，gemma 系列填 google
 
-SFT_LORA_PATH = os.path.join(_root, "sft/Qwen2.5-3B-sft-lora-final")
-DPO_LORA_PATH = os.path.join(_dpo_dir, "Qwen2.5-3B-dpo-final")       # 方案二（自生成数据）
-DPO_HH_PATH   = os.path.join(_dpo_dir, "finance-qwen-3b-dpo-hh-final")   # 方案一（hh-rlhf）
+_local_model    = os.path.join(_root, "models", SELECT_MODEL)
+BASE_MODEL_PATH = _local_model if os.path.isdir(_local_model) else f"{HF_MODEL_ORG}/{SELECT_MODEL}"
+print(f"[SELECT_MODEL={SELECT_MODEL}] 加载模型：{BASE_MODEL_PATH}")
+
+SFT_LORA_PATH = os.path.join(_new_models, f"{SELECT_MODEL}-sft-lora-final")
+DPO_LORA_PATH = os.path.join(_new_models, f"{SELECT_MODEL}-dpo-merged-final")   # 串联 DPO（自生成数据）
+DPO_HH_PATH   = os.path.join(_new_models, f"{SELECT_MODEL}-dpo-hh-merged-final")  # 串联 DPO（hh-rlhf）
 
 MAX_NEW_TOKENS = 300
 

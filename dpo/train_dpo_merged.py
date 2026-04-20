@@ -46,14 +46,16 @@ _dpo_dir = os.path.dirname(__file__)
 
 # 模型选择（通过 .env 中的 SELECT_MODEL 控制）
 SELECT_MODEL    = os.getenv("SELECT_MODEL", "Qwen2.5-3B")
+HF_MODEL_ORG    = os.getenv("HF_MODEL_ORG", "Qwen")               # HF 组织名，gemma 系列填 google
 _local_model    = os.path.join(_root, "models", SELECT_MODEL)
-BASE_MODEL_PATH = _local_model if os.path.isdir(_local_model) else f"Qwen/{SELECT_MODEL}"
+BASE_MODEL_PATH = _local_model if os.path.isdir(_local_model) else f"{HF_MODEL_ORG}/{SELECT_MODEL}"
 print(f"[SELECT_MODEL={SELECT_MODEL}] 加载模型：{BASE_MODEL_PATH}")
 
 SFT_LORA_PATH    = os.path.join(_root, f"new_models/{SELECT_MODEL}-sft-lora-final")
-DATA_FILE        = os.path.join(_dpo_dir, "dpo_finance_data.jsonl")
+DATA_FILE        = os.path.join(_dpo_dir, f"dpo_finance_data_{SELECT_MODEL}.jsonl")
 _new_models      = os.path.join(_root, "new_models")
-SFT_MERGED_PATH  = os.path.join(_new_models, f"{SELECT_MODEL}-sft-merged")
+_merge_models    = os.path.join(_root, "merge_models")
+SFT_MERGED_PATH  = os.path.join(_merge_models, f"{SELECT_MODEL}-sft-merged")   # sft/train_finance_mac.py 末尾自动 merge 的输出目录
 OUTPUT_DIR       = os.path.join(_new_models, f"checkpoints/{SELECT_MODEL}-dpo-merged-lora")
 FINAL_OUTPUT     = os.path.join(_new_models, f"{SELECT_MODEL}-dpo-merged-final")
 

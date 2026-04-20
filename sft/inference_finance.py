@@ -14,9 +14,15 @@ load_dotenv()
 # ==========================================
 # 配置路径
 # ==========================================
-_local_model_path = os.path.join(os.path.dirname(__file__), "../models/Qwen2.5-3B")
-BASE_MODEL_PATH = _local_model_path if os.path.isdir(_local_model_path) else "Qwen/Qwen2.5-3B"
-LORA_PATH = os.path.join(os.path.dirname(__file__), "Qwen2.5-3B-sft-lora-final")
+_root        = os.path.join(os.path.dirname(__file__), "..")
+_new_models  = os.path.join(_root, "new_models")
+SELECT_MODEL = os.getenv("SELECT_MODEL", "Qwen2.5-3B")
+HF_MODEL_ORG = os.getenv("HF_MODEL_ORG", "Qwen")               # HF 组织名，gemma 系列填 google
+
+_local_model    = os.path.join(_root, "models", SELECT_MODEL)
+BASE_MODEL_PATH = _local_model if os.path.isdir(_local_model) else f"{HF_MODEL_ORG}/{SELECT_MODEL}"
+LORA_PATH       = os.path.join(_new_models, f"{SELECT_MODEL}-sft-lora-final")
+print(f"[SELECT_MODEL={SELECT_MODEL}] 加载模型：{BASE_MODEL_PATH}")
 
 # ==========================================
 # 加载原模型 + LoRA 插件

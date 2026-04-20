@@ -239,9 +239,11 @@ def main():
     # 3. 生成问答
     if args.mode == "local":
         _root = os.path.dirname(os.path.dirname(__file__))
-        model_path = os.path.join(_root, "models/Qwen2.5-3B")
+        _select = os.getenv("SELECT_MODEL", "Qwen2.5-3B")
+        _org    = os.getenv("HF_MODEL_ORG", "Qwen")
+        model_path = os.path.join(_root, "models", _select)
         if not os.path.isdir(model_path):
-            model_path = "Qwen/Qwen2.5-3B"
+            model_path = f"{_org}/{_select}"
         all_qa = generate_qa_local(chunks, model_path)
 
     else:  # api

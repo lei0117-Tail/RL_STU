@@ -55,6 +55,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 load_dotenv()
 
 SELECT_MODEL = os.getenv("SELECT_MODEL", "Qwen2.5-3B")
+HF_MODEL_ORG = os.getenv("HF_MODEL_ORG", "Qwen")               # HF 组织名，gemma 系列填 google
 print(f"[SELECT_MODEL={SELECT_MODEL}]")
 
 # ==========================================
@@ -81,7 +82,7 @@ _root     = os.path.dirname(os.path.dirname(__file__))
 _grpo_dir = os.path.join(_root, "gdpo")
 
 _local_model    = os.path.join(_root, "models", SELECT_MODEL)
-BASE_MODEL_PATH = _local_model if os.path.isdir(_local_model) else f"Qwen/{SELECT_MODEL}"
+BASE_MODEL_PATH = _local_model if os.path.isdir(_local_model) else f"{HF_MODEL_ORG}/{SELECT_MODEL}"
 _new_models     = os.path.join(_root, "new_models")    # LoRA 插件来源目录
 _merge_models   = os.path.join(_root, "merge_models")  # 合并后完整模型输出目录
 SFT_LORA_PATH   = os.path.join(_new_models, f"{SELECT_MODEL}-sft-lora-final")
