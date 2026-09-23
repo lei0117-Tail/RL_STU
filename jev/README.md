@@ -102,20 +102,50 @@ python jev_style_client.py --url http://localhost:8080
 # decide(state, question, options) → [("Business", 0.68), ("Science/Technology", 0.31), ...]
 ```
 
-### 3.2 ⭐ open-jev-deberta-v3-large（纯 CPU 可跑，接口最完整）
+### 3.2 ⭐ open-jev-deberta-v3-large（✅ 已在本地跑通，接口最完整）
 
 - 仓库：`com-kotobalabs/open-jev-deberta-v3-large`（0.4B，社区最火，1.3k 下载）
 - 底座：DeBERTa-v3-large 编码器 + span 打分头，**一次 forward 回答任意多个问题**
 - **M1 Max CPU fp32：1.8 秒回答 4 个问题**；H100 上 518 questions/s
 - 完整实现 choice(≤255 选项) / noul / score 三种类型
 - 训练只用公开金标数据（banking77 / sst5 / boolq），ECE 0.022
-- 代码：`github.com/kotoba-lang/typed-decisions`
+- 代码：`github.com/kotoba-lang/typed-decisions`（已 clone 到 `jev/typed-decisions/`）
+
+#### 本地使用（M4 Mac，MPS 加速，已验证）
+
+```bash
+# 1. 安装依赖（一次性）
+.venv/bin/pip install sentencepiece protobuf
+
+# 2. 运行 demo（模型已下载到 jev/models/open-jev-deberta-v3-large/，约 1.7GB）
+.venv/bin/python jev/demo_open_jev.py
+```
+
+要点：
+- HF 模型仓库**自带 `typed_decisions/` 代码包**，`sys.path.insert(0, 模型目录)` 即可用，无需 pip install 仓库
+- `OpenJev.from_pretrained()` 自动选设备：cuda → mps → cpu，本地走 **MPS**
+- 实测（M4，MPS）：加载 4s；首次推理 ~2s（MPS 预热），后续 **3 个问题 ~240ms**
+- 如需重新下载/更新模型：
+  `HF_ENDPOINT=https://hf-mirror.com HF_HUB_DISABLE_XET=1 .venv/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download('com-kotobalabs/open-jev-deberta-v3-large', local_dir='jev/models/open-jev-deberta-v3-large')"`
+
+#### 中文实测结论（demo 场景四，M4 本机）
+
+模型纯英文训练（banking77/sst5/boolq），中文属 OOD 输入，实测表现：
+
+| 维度 | 结果 |
+|---|---|
+| 首选项准确度 | ✅ 意外地好——中文新闻仍选中"科技"（与英文版 Technology 一致），中文投诉仍选中 fees & charges |
+| 置信度 | ⬇️ 一致性下降：choice 0.58→0.38、noul 0.98→0.75（同一内容英文 vs 中文） |
+| 细粒度情感 | ❌ 明显退化：英文版 bullish 3.10/4，中文版只有 2.11/4（趋于中性） |
+| 校准诚实性 | ✅ 符合预期——OOD 输入上概率变保守平坦，"知道自己不确定" |
+
+生产建议：中文场景 ① 先翻译成英文再决策（简单可靠），或 ② 参照 `jev/typed-decisions/src/typed_decisions/train_encoder.py` 用中文数据微调一版（训练成本极低，官方复刻训练仅 $0.26/1 epoch）。
 
 ```text
-# pip install git+https://github.com/kotoba-lang/typed-decisions
+# 核心调用方式（详见 jev/demo_open_jev.py）
 from typed_decisions.open_jev import OpenJev
 
-m = OpenJev.from_pretrained("com-kotobalabs/open-jev-deberta-v3-large")
+m = OpenJev.from_pretrained("jev/models/open-jev-deberta-v3-large")
 m.decide(
     "I was charged twice for the same order and nobody answers my emails.",
     [
