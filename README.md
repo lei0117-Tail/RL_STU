@@ -58,6 +58,32 @@ LoRA 插件（可训练，几十MB）
 
 每一步都继承上一步的成果，效果更好。工业界标准流程（ChatGPT、LLaMA 等均采用）。
 
+#### 串联全链路详解（以 Qwen2.5-3B 为例）
+
+```
+① SFT 训练（sft/train_finance_mac.py）
+   原始模型 models/Qwen2.5-3B（冻结）
+        + LoRA（学习金融知识）
+   → 产出 ② new_models/Qwen2.5-3B-sft-lora-final   （LoRA 插件，仅 ~14MB）
+   → 脚本末尾自动 merge → ③ merge_models/Qwen2.5-3B-sft-merged
+                              （带领域知识的完整模型，~6GB）
+
+④ DPO/GRPO 后训练（train_dpo_merged.py / train_grpo_merged.py）
+   基底 = ③ SFT合并模型（知识已烧进权重，不再是插件）
+        + 一个全新的 LoRA（学习偏好 / 强化信号）
+   → 产出 new_models/{模型}-dpo-merged-final / -grpo-merged-final
+
+⑤ 再 merge（tools/merge_dpo_lora.py --mode serial）
+   ③ SFT合并模型 + ④ 新 LoRA 烧录
+   → merge_models/Qwen2.5-3B-dpo-serial-merged  （最终成品，可部署/Ollama）
+```
+
+链路要点：
+
+- ③ 的 merge 让 SFT 知识**永久写进权重**，④ 的训练梯度碰不到它（防灾难性遗忘）
+- ④ 新 LoRA 的 B 矩阵从零初始化，训练起点行为恰好等于 SFT 模型，无缝衔接
+- **只要保留 `models/`（原始模型）和 `new_models/`（全部 LoRA），`merge_models/` 里的任何成品都可以随时重新生成**（这也是磁盘清理的依据，见文末指南）
+
 ### 串联的三种实现方式
 
 **方式一：直接在 SFT LoRA 上继续训练（同一个 LoRA）**
@@ -85,6 +111,39 @@ model.set_adapter("grpo")  # 只训练 grpo
 ```
 - ✅ 两套 LoRA 均保留，可随时切换
 - ✅ 推理：原始模型同时加载 SFT + GRPO 两个 LoRA
+
+### 挂载 LoRA vs 提前 merge：有什么区别？
+
+**从推理结果看：两者数学等价**
+
+```python
+# 挂载方式（运行时）
+output = x @ W  +  x @ (B @ A)      # 原始权重 + LoRA 增量，两路计算
+# merge 后
+output = x @ (W + B @ A)            # 增量已烧进权重，一路计算
+```
+
+两者输出的 logits 理论上相同（仅有 bf16 舍入顺序带来的极微差异）。**如果只是推理，挂载和 merge 没有区别。**
+
+**从后续训练看：真正的分水岭**
+
+| | 挂载旧 LoRA 继续训练（方式一） | 先 merge 再挂新 LoRA（方式二，本项目串联） |
+|---|---|---|
+| 梯度流向 | 直接更新旧 A、B 矩阵 | 只更新全新 LoRA，烧录的权重冻结 |
+| SFT 知识 | 可能被 DPO/GRPO 梯度覆盖（灾难性遗忘） | 物理隔离，不可能被遗忘 |
+| 资产形态 | 一个 LoRA，知识+对齐混在一起 | 两个独立 LoRA，可分别分析/替换/组合 |
+| DPO ref model | 处理很绕（ref 要不要挂同一 LoRA？） | 基底即 SFT 模型，ref 干净利落 |
+
+**从工程上看：各有取舍**
+
+| 维度 | 挂载（base + LoRA） | 提前 merge |
+|---|---|---|
+| 磁盘占用 | 几十 MB（只有 A、B） | 完整模型 ~6GB |
+| 依赖 | 需要 peft，两步加载 | 任何框架直接加载（vLLM/Ollama） |
+| 推理速度 | 每层多两次小矩阵乘 | 单次矩阵乘，略快 |
+| 可逆性 | ✅ 卸载插件即回到原始模型 | ❌ 单向操作，需保留原始模型备份 |
+
+> 一句话：**merge 不改变模型的行为，改变的是知识的存储形态**——从"可被梯度修改的插件"变成"冻结在权重里的固定资产"。串联方案要的正是这个效果；代价是每个阶段多存一份完整模型。
 
 ---
 
@@ -435,3 +494,62 @@ LoRA 更新生效时会乘以一个缩放因子：
 ```
 
 训练完成后，脚本会自动清理中间 checkpoint（只保留 `FINAL_OUTPUT` 中的最终 LoRA 权重）。
+
+---
+
+## 目录作用与磁盘清理指南
+
+### 三层模型存储结构
+
+| 目录 | 存的是什么 | 角色定位 |
+|---|---|---|
+| `models/` | HuggingFace 下载的**原始预训练模型**（Qwen2.5-3B、gemma-4-E2B-it 等） | 原材料，训练起点，只读不写 |
+| `new_models/` | 训练产出的 **LoRA 插件**（`adapter_model.safetensors`，每个仅几十 MB） | 半成品，需挂载到基底模型才能使用 |
+| `new_models/checkpoints/` | 训练中间 checkpoint，用于断点续训 | 临时产物，训练完自动清理 |
+| `merge_models/` | `merge_and_unload()` 后的**完整独立模型** | 成品，可直接部署；同时是串联训练的基底 |
+| `jev/models/` | open-jev-deberta 决策模型（Jev 调研用） | 独立实验资产 |
+| `.venv/` | Python 虚拟环境 | 运行环境 |
+
+数据流：`models/`（冻结基底）→ 训练 → `new_models/`（LoRA 插件）→ merge → `merge_models/`（完整模型）→ 作为下一轮串联训练的基底 → 循环累积。
+
+### 当前磁盘占用明细（总计约 55GB，2026-09 统计）
+
+```
+models/Qwen2.5-3B                              5.8G   ❌ 保留（一切训练的基底）
+models/gemma-4-E2B-it                           9.6G   ❌ 保留（训练基底）
+new_models/（全部 LoRA 插件）                   ~0.1G  ❌ 保留（核心资产，删了只能重训）
+new_models/checkpoints/                          0B    ✅ 空的（脚本已自动清理）
+merge_models/Qwen2.5-3B-sft-merged              5.8G   ⚠️ 可删（可随时重建）
+merge_models/Qwen2.5-3B-dpo-serial-merged      12G     ⚠️ 可删（safetensors 5.7G + gguf 5.8G）
+merge_models/gemma-4-E2B-it-sft-merged          9.5G   ⚠️ 可删（可随时重建）
+merge_models/gemma-4-E2B-it-dpo-serial-merged   9.5G   ⚠️ 可删（gemma 最终成品，不用可删）
+jev/models/open-jev-deberta-v3-large            1.6G   看需求（Jev 实验还在用就留）
+.venv/                                          1G     ❌ 保留
+```
+
+### 清理建议（按优先级，删前请确认对应 LoRA 都在 new_models/ 下）
+
+1. **`merge_models/gemma-4-E2B-it-sft-merged`（9.5G）**——串联训练的中间基底，当前没有正在进行的 gemma 串联训练即可删
+2. **`merge_models/Qwen2.5-3B-dpo-serial-merged/qwen2.5-3b-dpo.gguf`（5.8G）**——`ollama create` 导入时已复制进 Ollama 自己的存储（`~/.ollama`），删除源 gguf 不影响已导入的 `qwen2.5-3b-dpo-finance` 模型
+3. **`merge_models/gemma-4-E2B-it-dpo-serial-merged`（9.5G）**——gemma 的 DPO 最终成品，暂时不用 gemma 推理可删
+4. **`merge_models/Qwen2.5-3B-dpo-serial-merged/` 的 safetensors 部分（5.7G）**——如果只通过 Ollama 的 gguf 版使用，safetensors 也可删（但今后重新转换 gguf 需要先重建它）
+
+> 以上 2~4 项全删可释放约 **30G**；加上第 1 项共约 **39G**。
+
+### 删除后如何找回
+
+只要 `models/`（原始模型）和 `new_models/`（LoRA 插件）还在，`merge_models/` 里的任何成品都能一条命令重建：
+
+```bash
+# 重建 SFT 合并模型
+.venv/bin/python tools/merge_sft_lora.py
+
+# 重建串联 DPO 成品（sft-merged 不存在时自动先合并）
+.venv/bin/python tools/merge_dpo_lora.py --mode serial --auto-merge-sft
+
+# 重建串联 GRPO 成品
+.venv/bin/python tools/merge_grpo_lora.py --mode serial --auto-merge-sft
+```
+
+> ⚠️ 唯一不可再生的是 `new_models/` 下的 LoRA 权重和 `models/` 下的原始模型——**这两个目录无论多缺空间都不要删**。
+> gguf 的重建需要先用上面的命令恢复 safetensors，再按 `change_ollama.md` 的流程重新转换。
