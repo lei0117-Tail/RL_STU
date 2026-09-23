@@ -195,10 +195,15 @@ m.decide(
 
 ```
 jev/
-├── README.md            # 本文档
-├── build_jev_data.py    # 计划：finance-alpaca → 选择题（用 SFT 模型生成干扰项）
-├── train_jev.py         # 计划：冻结 gemma-4-E2B-it + LoRA + 分类头，CE loss 自定义训练循环
-└── inference_jev.py     # 计划：单次 forward 出概率，对比 base 模型 few-shot
+├── README.md                 # 本文档：Jev 介绍 + 组合生态 + 模型调研 + 中文实测
+├── demo_open_jev.py          # ✅ 官方封装体验 demo（4 场景：客服/金融/门控/中文跨语言）
+├── manual_pipeline.py        # ✅ 手动推理流水线（不用 OpenJev 类，手写 6 步，与官方结果逐位一致）
+├── manual_pipeline_notes.md  # ✅ 手动流水线技术说明：6 步详解 + 踩坑记录 + 验证方法
+├── models/open-jev-deberta-v3-large/   # ✅ 已下载模型（1.7GB，含自带代码包）
+├── typed-decisions/          # ✅ 训练管线源码（clone 自 GitHub，后续自训练用）
+├── build_jev_data.py         # 计划：finance-alpaca → 选择题（用 SFT 模型生成干扰项）
+├── train_jev.py              # 计划：冻结 gemma-4-E2B-it + LoRA + 分类头，CE loss 自定义训练循环
+└── inference_jev.py          # 计划：单次 forward 出概率，对比 base 模型 few-shot
 ```
 
 复现要点（参考 Jev-Omni 的 `decision_config.json`）：

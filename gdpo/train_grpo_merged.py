@@ -67,7 +67,7 @@ if not os.path.isdir(SFT_LORA_PATH):
 # 1. 加载数据集（GRPO 只需要 prompt）
 # ==========================================
 print("加载 finance-alpaca 数据集...")
-raw_dataset = load_dataset("gbharti/finaetao nce-alpaca", split="train[:1000]")
+raw_dataset = load_dataset("gbharti/finance-alpaca", split="train[:1000]")
 
 def format_prompt(example):
     instruction = example["instruction"].strip()
