@@ -1,4 +1,7 @@
 """
+
+https://huggingface.co/com-kotobalabs/open-jev-deberta-v3-large
+
 open-jev-deberta-v3-large 本地体验 Demo
 ==========================================
 Jev 风格的类型化决策模型（第三方开源复刻，com-kotobalabs 出品）：
